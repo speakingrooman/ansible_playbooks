@@ -7,17 +7,92 @@
    group/aws:
     region: "us-east-2"
   tasks:
-   - name: Provision Bobs EC2 instance
+   - name: Provision First EC2 instance
      ec2:
       key_name: blah
       group: Module5-developer-sg
       instance_type: t3.nano
       image: "{{ ami_id }}"
       instance_tags:
-       Name: Module5 Bob
+       Name: Module5 First
        Module: 5
       wait: yes
       vpc_subnet_id: "{{ public_subnet.subnet.id }}" 
+      assign_public_ip: yes
       exact_count: 1
       count_tag:
-       Name: Module5 Bob
+       Name: Module5 First
+   - name: Provision Second EC2 instance
+     ec2:
+      key_name: blah
+      group: Module5-developer-sg
+      instance_type: t3.nano
+      image: "{{ ami_id }}"
+      instance_tags:
+       Name: Module5 Second
+       Module: 5
+      wait: yes
+      vpc_subnet_id: "{{ public_subnet2.subnet.id }}"
+      assign_public_ip: yes
+      exact_count: 1
+      count_tag:
+       Name: Module5 Second
+   - name: Create an ec2 launch template
+     ec2_launch_template:
+      name: "M5_Launch"
+      key_name: blah
+      image_id: "{{ ami_id }}"
+      instance_type: t3.nano
+      iam_instance_profile: image-gallery-server-role
+      disable_api_termination: true
+      network_interfaces:
+       - device_index: 0
+         groups: ["{{ M5_public_sg.group_id }}"]
+         associate_public_ip_address: yes
+     register: launch_template
+   - name: Create a target group
+     elb_target_group:
+      name: m5targetgroup
+      protocol: tcp
+      port: 80
+      vpc_id: "{{ vpc.vpc.id }}"
+      stickiness_type: source_ip
+      state: present
+   - name: Create a load balancer
+     elb_network_lb:
+      name: M5-LB
+      subnets:
+        - "{{ public_subnet.subnet.id }}"
+        - "{{ public_subnet2.subnet.id }}"
+      listeners:
+       - Protocol: TCP # Required. The protocol for connections from clients to the load balancer (TCP or TLS) (case-sensitive).
+         Port: 80 # Required. The port on which the load balancer is listening.
+         DefaultActions:
+          - Type: forward # Required. Only 'forward' is accepted at this time
+            TargetGroupName: m5targetgroup # Required. The name of the target group
+      state: present
+     register: elb
+   - name: Create an asg
+     ec2_asg:
+      name: M5ASG
+      load_balancers: [ "{{ elb.load_balancer_name }}" ]
+      availability_zones: [ 'us-east-2a', 'us-east-2c' ]
+      launch_template:
+       version: '1'
+       launch_template_name: "M5_Launch"
+       launch_template_id: "{{ launch_template.default_template.launch_template_id }}"
+      min_size: 2
+      max_size: 4
+      desired_capacity: 2
+      vpc_zone_identifier: [ "{{ public_subnet.subnet.id }}", "{{ public_subnet2.subnet.id }}" ]
+      tags:
+       - environment: production
+         propagate_at_launch: no
+
+
+
+
+
+
+
+
