@@ -49,6 +49,7 @@
        - device_index: 0
          groups: ["{{ M5_public_sg.group_id }}"]
          associate_public_ip_address: yes
+      user_data: "{{ lookup('file', 'startup_script/launch_ec2.sh') | b64encode }}"
      register: launch_template
    - name: Create a target group
      elb_target_group:
@@ -58,6 +59,7 @@
       vpc_id: "{{ vpc.vpc.id }}"
       stickiness_type: source_ip
       state: present
+     register: tg
    - name: Create a load balancer
      elb_network_lb:
       name: M5-LB
@@ -65,8 +67,10 @@
         - "{{ public_subnet.subnet.id }}"
         - "{{ public_subnet2.subnet.id }}"
       listeners:
-       - Protocol: TCP # Required. The protocol for connections from clients to the load balancer (TCP or TLS) (case-sensitive).
-         Port: 80 # Required. The port on which the load balancer is listening.
+       - Protocol: TLS # Required. The protocol for connections from clients to the load balancer (TCP or TLS) (case-sensitive).
+         Certificates:
+          - CertificateArn: "arn:aws:acm:us-east-2:351879663582:certificate/e439739c-871d-4763-a8cd-e236089cb5ab"
+         Port: 443 # Required. The port on which the load balancer is listening.
          DefaultActions:
           - Type: forward # Required. Only 'forward' is accepted at this time
             TargetGroupName: m5targetgroup # Required. The name of the target group
@@ -75,15 +79,17 @@
    - name: Create an asg
      ec2_asg:
       name: M5ASG
-      load_balancers: [ "{{ elb.load_balancer_name }}" ]
+     # load_balancers: [ '{{ elb.load_balancer_name }}' ]
+      target_group_arns: 
+       - "{{ tg.target_group_arn }}"
       availability_zones: [ 'us-east-2a', 'us-east-2c' ]
       launch_template:
        version: '1'
-       launch_template_name: "M5_Launch"
-       launch_template_id: "{{ launch_template.default_template.launch_template_id }}"
+       launch_template_name: 'M5_Launch'
+       launch_template_id: '{{ launch_template.default_template.launch_template_id }}'
       min_size: 2
       max_size: 4
-      desired_capacity: 2
+      desired_capacity: 3
       vpc_zone_identifier: [ "{{ public_subnet.subnet.id }}", "{{ public_subnet2.subnet.id }}" ]
       tags:
        - environment: production
