@@ -82,10 +82,12 @@
          ports:
           - 22
           - 80
+          - 443
           - 5000
           - 5555
           - 8080
           - 5432
+          - 1024-65535
          cidr_ip: 0.0.0.0/0
          rule_desc: allow all to ports 22 and 80
       state: present

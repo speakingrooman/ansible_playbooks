@@ -58,6 +58,7 @@
       port: 80
       vpc_id: "{{ vpc.vpc.id }}"
       stickiness_type: source_ip
+      stickiness_enabled: no
       state: present
      register: tg
    - name: Create a load balancer

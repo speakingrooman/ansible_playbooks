@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  gather_facts: no
+  tasks:
+  - rds_subnet_group:
+     state: present
+     name: M5sng
+     description: SNG from Ansible
+     region: us-east-2
+     subnets:
+      - "{{ private_subnet.subnet.id }}"
+      - "{{ private_subnet2.subnet.id }}"
+  - local_action:
+     module: rds
+     command: restore
+     snapshot: m5ansible
+     instance_name: M5-Image-Gallery
+     region: us-east-2
+     subnet: M5sng
+     publicly_accessible: yes
+     wait: yes
+     wait_timeout: 600
+     tags:
+         Name: M5Ansible_DB
